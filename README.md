@@ -1,82 +1,122 @@
-# ctprobe — Certificate Transparency Subdomain Enumeration & HTTP/S Reconnaissance
+<div align="center">
 
-A command-line tool for enumerating the subdomains of a target domain from
-Certificate Transparency logs and probing their HTTP/S reachability. Intended
-for **authorized** security assessments and OSINT reconnaissance only.
+# 🔍 CTProbe
 
-> `ctprobe` is not an anonymity tool. `--stealth` lowers request rate and
-> concurrency; it does not make traffic anonymous or undetectable.
+**Certificate Transparency Subdomain Enumeration & HTTP/S Reconnaissance**
 
-**Features:**
-- Query crt.name for SSL certificates issued to a target domain
-- Extract, normalize, and deduplicate certificate-derived subdomains
-- Test discovered subdomains for HTTP/S reachability
-- Support for HTTP/1.1, HTTP/2, and HTTP/3
-- Conservative ("stealth") scanning mode with rate limiting
-- Concurrent testing with configurable workers
-- Output in TXT, JSON, or XLSX format
-- Basic threat heuristics analysis
-- Proxy and Tor support
-- TLS verification control
-- Custom headers and User-Agent
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://github.com/Debajyoti0-0/CTProbe/blob/main/LICENSE)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue.svg)](https://www.python.org/downloads/)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)]()
+[![Code style: PEP 8](https://img.shields.io/badge/style-PEP%208-orange.svg)]()
 
-## How It Works
+*Enumerate certificate-derived subdomains of any apex domain and probe their
+HTTP/S reachability — fast, fail-closed, and protocol-aware.*
 
-1. You supply a **target (apex) domain** — e.g. `example.com`. A full URL or a
-   deep subdomain is normalized down to the registrable apex first.
-2. `ctprobe` queries **Certificate Transparency** data (via crt.name) for
-   certificates issued under that apex.
-3. **Certificate DNS names** (SAN entries) are extracted from the response.
-4. Names are **normalized** (lowercased, trailing dots and wildcards stripped)
-   and **deduplicated**.
-5. Names are **filtered to the target apex** using label-aware matching, so
-   sibling or unrelated certificate names are dropped. The result is a set of
-   **subdomains** associated with the target — e.g. `www.example.com`,
-   `api.example.com`, `dev.example.com` (the apex itself is included).
-6. Optionally, each subdomain is **probed over HTTP/S** to test reachability.
-7. Responses are classified against a status-code policy you control with
-   `-mc`/`--match-code` and `-fc`/`--filter-code`. A subdomain is reported
-   **LIVE** only when its response is *matched* by the effective policy.
+[Quick Start](#-quick-start) · [Usage](#usage) · [Options](#common-options) · [Examples](#example-workflows)
 
-> **What the results represent.** `ctprobe` reports the certificate-derived DNS
-> names returned by the CT source for your apex query, filtered to the target
-> apex with label-aware matching. CT logs only ever reveal names that appear in
-> *issued certificates* — hosts that never had a public certificate will not
-> appear. Wildcard certificate entries (`*.example.com`) are reduced to the
-> parent domain rather than expanded into concrete hosts. Treat the output as a
-> strong starting point for reconnaissance, not an exhaustive subdomain list.
+</div>
+
+---
+
+> ⚠️ **Authorized use only.** CTProbe is intended for **authorized** security
+> assessments and OSINT reconnaissance. It is **not** an anonymity tool:
+> `--stealth` lowers request rate and concurrency; it does not make traffic
+> anonymous or undetectable.
+
+## ✨ Features
+
+| Category | Capabilities |
+|----------|-------------|
+| **Discovery** | Query Certificate Transparency logs (crt.name), extract & normalize SAN entries, public-suffix-aware apex filtering |
+| **Live Testing** | HTTP/1.1 · HTTP/2 · HTTP/3 with capability-aware negotiation, bounded-concurrency async engine (aiohttp) |
+| **Routing** | Fail-closed HTTP/SOCKS4/4a/5/5h proxy support, verified Tor routing (`IsTor` confirmed before scan) |
+| **Stealth** | Low-rate mode with randomized delays, reduced concurrency, respectful retry behavior |
+| **Analysis** | Status-code match/filter policies, heuristic threat scoring, structured error classification |
+| **Output** | TXT · JSON · XLSX, custom filenames/directories, color-free files |
+
+## 🚀 Quick Start
+
+```bash
+git clone https://github.com/Debajyoti0-0/CTProbe.git
+cd CTProbe
+
+pip install -r requirements.txt
+
+# Enumerate subdomains of example.com
+python -m ctprobe example.com --no-live
+```
+
+### Optional Extras
+
+```bash
+pip install 'httpx[http2]'    # HTTP/2 support
+pip install openpyxl          # XLSX output
+```
+
+HTTP/3 requires a curl binary built with HTTP/3 support.
+
+<details>
+<summary><b>Debian / Kali packaging</b></summary>
+
+```bash
+sudo apt install build-essential debhelper dh-python pybuild-plugin-pyproject \
+                 python3-all python3-setuptools
+dpkg-buildpackage -us -uc
+sudo dpkg -i ../ctprobe_1.0.0-1_all.deb
+```
+
+</details>
+
+## 📖 How It Works
+
+```mermaid
+flowchart LR
+    A[Target domain] --> B[Normalize to apex<br/>public-suffix aware]
+    B --> C[Query CT logs<br/>crt.name]
+    C --> D[Extract SAN names]
+    D --> E[Dedupe + filter<br/>to target apex]
+    E --> F{Live testing?}
+    F -->|yes| G[Probe HTTP/S<br/>status policy]
+    F -->|no| H[Report subdomains]
+    G --> I[Classify MATCHED /<br/>FILTERED / NOT_MATCHED]
+    I --> J[LIVE results]
+```
+
+1. **Input normalization** — a full URL or deep subdomain is reduced to the registrable apex.
+2. **CT query** — certificates issued under the apex are fetched from crt.name.
+3. **SAN extraction** — DNS names are lowercased, wildcards/trailing dots stripped, deduplicated.
+4. **Apex filtering** — label-aware matching keeps only names belonging to the target.
+5. **Optional probing** — each name is tested over HTTP/S; classification follows your `-mc`/`-fc` status policy. A host is **LIVE** only when its response is *matched*.
+
+> **What the results represent:** CT logs only reveal names that appear in
+> *issued certificates*. Hosts without a public certificate will not appear,
+> and wildcard entries are reduced to the parent domain. Treat output as a
+> strong starting point, not an exhaustive inventory.
 
 ## Requirements
 
 - **Python:** 3.9+
-- **Core:** requests, urllib3
-- **Optional - HTTP/2:** httpx[http2]
-- **Optional - Excel output:** openpyxl
-- **Optional - HTTP/3:** curl with HTTP/3 support
+- **Platform:** Windows · macOS · Linux (fully cross-platform)
+- **Core:** `requests`, `urllib3`, `tldextract`, `aiohttp`
+- **Optional:** `httpx[http2]` (HTTP/2) · `openpyxl` (XLSX) · `rich` (enhanced UI) · curl with HTTP/3
 
 ## Installation
 
-### Basic Setup
+### From source
 
 ```bash
-# Clone or navigate to the project directory
-cd ctprobe
-
-# Install core dependencies
+git clone https://github.com/Debajyoti0-0/CTProbe.git
+cd CTProbe
 pip install -r requirements.txt
 ```
 
-### Optional Dependencies
+### With pip (editable dev install)
 
 ```bash
-# Enable HTTP/2 support
-pip install 'httpx[http2]'
-
-# Enable Excel output (XLSX)
-pip install openpyxl
-
-# Enable HTTP/3 support
-# Requires curl with HTTP/3: brew install --HEAD curl (macOS with Homebrew)
+pip install -e .
+pip install -e '.[dev]'      # + test tooling
+pip install -e '.[http2]'    # + HTTP/2
+pip install -e '.[xlsx]'     # + Excel output
 ```
 
 ## Usage
@@ -151,6 +191,10 @@ is used. In quiet mode, testing is skipped rather than waiting for input.
 --tor socks5://127.0.0.1:9050       # Custom Tor endpoint
 ```
 
+Routing is **fail-closed**: if the proxy cannot be verified, no scanner traffic
+is issued directly. Tor is reported as active only after an actual proxied
+request confirms `IsTor: true`.
+
 ### TLS/SSL
 ```bash
 --bypass-tls          # Disable certificate verification (insecure)
@@ -202,6 +246,10 @@ reported as network failures. `--filter-code` takes precedence over
 --user-agent "Custom/1.0"                 # Custom User-Agent
 ```
 
+Control characters are rejected in header values (request-line injection
+protection). An explicit `User-Agent` header always wins over `--user-agent`,
+and credentials in proxy URLs are redacted in debug output.
+
 ## Example Workflows
 
 ### 1. Quick Subdomain Enumeration
@@ -218,7 +266,7 @@ Enumerates subdomains, saves to `Outputs/example.com.output.txt`.
 python -m ctprobe example.com --live --output json
 ```
 
-Enumerates subdomains, tests reachability, saves to:
+Saves:
 - `Outputs/example.com.ALL-output.json` (all discovered)
 - `Outputs/example.com.LIVE-output.json` (reachable only)
 
@@ -321,205 +369,166 @@ Outputs/
 
 ## Stealth Mode
 
-**What It Is:**
-- Low-rate, conservative scanning
-- Reduced concurrency
-- Randomized request spacing
-- Respectful retry behavior
-- Connection reuse where possible
-- Rates limiting compliance
+| ✅ What It Is | ❌ What It Is NOT |
+|--------------|-------------------|
+| Low-rate, conservative scanning | Anonymous or undetectable |
+| Reduced concurrency | WAF/IDS bypass |
+| Randomized request spacing | Invisibility |
+| Respectful retry behavior | Rate-limit defeat |
+| Connection reuse where possible | |
 
-**What It Is NOT:**
-- Anonymous or undetectable
-- WAF/IDS bypass
-- Invisibility
-- Rate-limit defeat
-
-**Use When:**
-- Testing systems you own or are authorized to test
-- Want to avoid unnecessary network load
-- Prefer stability over speed
+**Use when:** testing systems you own or are authorized to test, avoiding
+unnecessary network load, or preferring stability over speed.
 
 ## Threat Analysis
 
-**Heuristic Indicators:**
+**Heuristic indicators:**
 
-- Suspicious TLDs (.zip, .tk, .ga, .cf, etc.)
-- Suspicious keywords (login, verify, secure, wallet, payment, etc.)
+- Suspicious TLDs (`.zip`, `.tk`, `.ga`, `.cf`, …)
+- Suspicious keywords (`login`, `verify`, `secure`, `wallet`, `payment`, …)
 - Very long domains (>50 chars)
 - Excessive hyphens (≥3)
 - Many consecutive digits
 - Excessive subdomain depth (>4 levels)
 
-**Threat Levels:**
-- **NONE:** No suspicious indicators
-- **LOW:** 1 indicator
-- **MEDIUM:** 2-4 indicators
-- **HIGH:** 5+ indicators
+**Threat levels:** `NONE` (0) → `LOW` (1) → `MEDIUM` (2–4) → `HIGH` (5+)
 
-**Important:** These are heuristics only. Not an authoritative verdict.
+> ⚠️ Heuristics only — not an authoritative maliciousness verdict.
 
 ## Error Handling
 
 The scanner classifies errors:
 
-- **DNS_ERROR:** Domain name resolution failed
-- **CONNECTION_ERROR:** TCP connection refused or failed
-- **CONNECTION_TIMEOUT:** Request timeout
-- **TLS_ERROR:** SSL/TLS certificate or handshake failure
-- **HTTP_429:** Rate limited by server
-- **HTTP_5XX:** Server error response
-- **PROXY_ERROR:** Proxy connection failed
-- **INVALID_URL:** Malformed URL
-- **UNKNOWN_ERROR:** Other errors
+| Error Type | Meaning |
+|-----------|---------|
+| `DNS_ERROR` | Domain name resolution failed |
+| `CONNECTION_ERROR` | TCP connection refused or failed |
+| `CONNECTION_TIMEOUT` | Request timeout |
+| `TLS_ERROR` | SSL/TLS certificate or handshake failure |
+| `HTTP_429` | Rate limited by server |
+| `HTTP_5XX` | Server error response |
+| `PROXY_ERROR` | Proxy connection failed |
+| `INVALID_URL` | Malformed URL |
+| `UNKNOWN_ERROR` | Other errors |
 
-One failed subdomain never stops the scan—all discovered subdomains are tested.
+One failed subdomain never stops the scan — all discovered subdomains are tested.
 
 ## Troubleshooting
 
-### OpenSSL/LibreSSL Warning
+<details>
+<summary><b>OpenSSL/LibreSSL warning</b></summary>
 
 ```
 [!] TLS backend: LibreSSL 2.8.3
 [!] urllib3 v2 officially supports OpenSSL 1.1.1+.
-[!] Your Python ssl module is using LibreSSL.
-[!] Consider using a Python build linked against OpenSSL 1.1.1+ or OpenSSL 3.x.
-[+] Continuing with the current Python TLS environment.
 ```
 
-The TLS backend is determined by the Python interpreter build. Installing or
-upgrading `requests` does not replace the OpenSSL/LibreSSL implementation used
-by Python's `ssl` module. Use this diagnostic command to inspect the active
-runtime:
+The TLS backend comes from the Python interpreter build — upgrading `requests`
+does not replace it. Inspect your runtime:
 
 ```bash
 python3 -c "import ssl; print(ssl.OPENSSL_VERSION)"
 ```
 
-For a durable fix, use a Python distribution or build linked against OpenSSL
-1.1.1+ or OpenSSL 3.x. The exact upgrade or reinstall procedure depends on how
-Python was installed on the host.
+For a durable fix, use a Python build linked against OpenSSL 1.1.1+ / 3.x.
 
-### HTTP/2 Not Available
+</details>
 
-```
-[-] HTTP/2 requires httpx. Install with: pip install 'httpx[http2]'
-```
+<details>
+<summary><b>HTTP/2 not available</b></summary>
 
-**Solution:**
 ```bash
 pip install 'httpx[http2]'
 ```
 
-### HTTP/3 Not Available
+</details>
 
-```
-[-] HTTP/3 requires curl with HTTP/3 support.
-```
+<details>
+<summary><b>HTTP/3 not available</b></summary>
 
-**Solution:**
+Requires a curl binary built with HTTP/3 support:
+
 ```bash
-# macOS with Homebrew
+# macOS (Homebrew)
 brew install --HEAD curl
+
+# Linux (Debian/Ubuntu)
+sudo apt install curl   # check support: curl --version | grep http3
+
+# Windows
+winget install cURL.cURL
 ```
 
-### TLS Certificate Errors
+</details>
 
-```
-[-] TLS error: certificate verify failed
-```
+<details>
+<summary><b>TLS certificate errors</b></summary>
 
-**Solution (if authorized):**
 ```bash
-python -m ctprobe example.com --bypass-tls
+python -m ctprobe example.com --bypass-tls   # authorized testing ONLY
 ```
 
-### Rate Limited (HTTP 429)
+</details>
 
-Normal—the server rejected the request due to rate limiting.
+<details>
+<summary><b>Rate limited (HTTP 429)</b></summary>
 
-**Solution:**
+Normal server behavior. Slow down:
+
 ```bash
 python -m ctprobe example.com --stealth --stealth-min-delay 5
 ```
 
-### Proxy Connection Failed
+</details>
 
-```
-[-] Proxy error: connection refused
-```
+<details>
+<summary><b>Proxy connection failed</b></summary>
 
-**Verify proxy is running and accessible:**
 ```bash
 python -m ctprobe example.com --proxy http://127.0.0.1:8080 --debug
 ```
 
-### Tor Connection Failed
+Verify the proxy is running and reachable.
 
-Ensure Tor is running:
+</details>
+
+<details>
+<summary><b>Tor connection failed</b></summary>
+
 ```bash
-# macOS with Homebrew
-brew install tor
-brew services start tor
+# macOS (Homebrew)
+brew install tor && brew services start tor
 
-# Verify
+# Linux (Debian/Ubuntu)
+sudo apt install tor && sudo systemctl start tor
+
+# Windows
+winget install TorProject.TorBrowser   # run Tor Browser's bundled daemon
+```
+
+Verify:
+
+```bash
 curl --socks5 127.0.0.1:9050 https://check.torproject.org
 ```
 
+</details>
+
 ## Security Considerations
 
-### Authorized Testing Only
-
-Only use this tool on domains and systems you own or have explicit authorization to test.
-
-### TLS Verification
-
-Always keep TLS verification enabled. `--bypass-tls` is for authorized testing only.
-
-### Credentials
-
-Never include credentials in:
-- Domain names
-- User-Agent strings
-- Custom headers (automatic redaction in debug output)
-- Proxy URLs (automatic redaction in debug output)
-
-### Rate Limiting
-
-Respect `HTTP 429` responses and `Retry-After` headers. Use `--stealth` for conservative scanning.
-
-### Tor & Proxy
-
-Using Tor or proxies for "anonymity" in security testing is unreliable. Use them for:
-- Testing access policies
-- Rotating IP addresses legitimately
-- Routing through authorized gateways
+- **Authorized testing only** — use this tool solely on domains and systems you own or have explicit written authorization to test.
+- **Keep TLS verification on** — `--bypass-tls` exists for authorized lab work only.
+- **Credentials** — never embed credentials in domains, User-Agents, or headers. Proxy URLs and sensitive headers are automatically redacted in debug output.
+- **Rate limiting** — respect `HTTP 429` responses and `Retry-After` headers; prefer `--stealth`.
+- **Tor/proxies** — unreliable for anonymity; use for access-policy testing, legitimate IP rotation, or authorized gateways.
 
 ## Performance Tips
 
-### For Large Subdomain Sets (1000+)
-
-```bash
-python -m ctprobe example.com \
-  --live \
-  --workers 20 \
-  --timeout 5 \
-  --stealth \
-  --stealth-min-delay 0.1 \
-  --stealth-max-delay 0.5
-```
-
-### For Speed
-
-```bash
-python -m ctprobe example.com --live --workers 50 --timeout 5
-```
-
-### For Stability
-
-```bash
-python -m ctprobe example.com --live --workers 5 --timeout 15 --stealth
-```
+| Goal | Command |
+|------|---------|
+| Large sets (1000+) | `--live --workers 20 --timeout 5 --stealth --stealth-min-delay 0.1 --stealth-max-delay 0.5` |
+| Speed | `--live --workers 50 --timeout 5` |
+| Stability | `--live --workers 5 --timeout 15 --stealth` |
 
 ## Architecture
 
@@ -533,35 +542,36 @@ ctprobe/
   ├─ domain.py             # Domain normalization
   ├─ crt_client.py         # CRT.name API client
   ├─ http_client.py        # HTTP protocol abstraction
+  ├─ async_engine.py       # Async live-testing engine (aiohttp)
   ├─ live_test.py          # Live reachability testing
+  ├─ network.py            # Fail-closed proxy/Tor routing
   ├─ threat.py             # Threat heuristics
   ├─ output.py             # Output/export functions
-  ├─ logging_utils.py      # Logging and formatting
-  └─ environment.py        # Environment checks
+  ├─ presentation.py       # Terminal presentation
+  ├─ logging_utils.py      # Logging + credential redaction
+  ├─ environment.py        # Environment checks
+  ├─ status_policy.py      # Status-code match/filter policies
+  └─ terminal.py           # Terminal capabilities/colors
 ```
 
 ## Testing
 
 ```bash
-# Install test dependencies
-pip install pytest pytest-cov pytest-mock
+pip install -e '.[dev]'
 
-# Run all tests
-pytest tests/
-
-# Run with coverage
-pytest tests/ --cov=ctprobe --cov-report=html
-
-# Run specific test file
-pytest tests/test_scanner.py -v
+pytest tests/                                  # all tests
+pytest tests/ --cov=ctprobe --cov-report=html  # with coverage
+pytest tests/test_scanner.py -v                # specific file
 ```
+
+The suite is fully offline/mocked — safe to run anywhere.
 
 ## Development
 
 ### Adding Features
 
 1. Add models to `models.py`
-2. Add functionality to appropriate module
+2. Add functionality to the appropriate module
 3. Add tests to `tests/`
 4. Update README
 
@@ -574,33 +584,43 @@ pytest tests/test_scanner.py -v
 
 ## Known Limitations
 
-1. **CT Coverage & Precision:** Results are the certificate-derived DNS names
-   returned for your apex query, filtered to the target apex with label-aware
-   matching. CT logs only reveal names that appeared in an *issued
-   certificate*, so subdomains without a public certificate are never found.
-   The output can also include the apex itself, and wildcard entries are
-   reduced to the parent domain rather than expanded. It is not an exhaustive
-   or authoritative subdomain list.
-
-2. **CRT.name Rate Limiting:** Large domains (1000s of certificates) may be rate-limited. Implement retry logic if needed.
-
-3. **Protocol Negotiation:** Reported HTTP version depends on client library capabilities. May not be 100% accurate.
-
-4. **Redirect Limits:** Follows up to typical redirect limits (usually 30). Protects against redirect loops.
-
-5. **Threat Analysis:** Heuristic-only. Not a replacement for actual threat intelligence.
-
-6. **Performance:** Very large subdomain sets (10,000+) may require memory/CPU optimization.
-
-## License
-
-[Specify your license here]
+1. **CT coverage & precision** — only names that appeared in *issued certificates* are discoverable; wildcard entries collapse to the parent domain. Not exhaustive.
+2. **CRT.name rate limiting** — very large domains may hit rate limits.
+3. **Protocol negotiation** — reported HTTP version depends on client library capabilities.
+4. **Redirect limits** — bounded redirect following protects against loops.
+5. **Threat analysis** — heuristic-only, not threat intelligence.
+6. **Scale** — sets of 10,000+ subdomains may need memory/CPU tuning.
 
 ## Contributing
 
-[Contribution guidelines]
+Contributions are welcome!
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+Please make sure tests pass and follow the existing code style.
+
+## License
+
+This project is licensed under the **GNU General Public License v3.0 or later**
+— see the [LICENSE](https://github.com/Debajyoti0-0/CTProbe/blob/main/LICENSE)
+file for details.
 
 ## Support
 
-For issues, feature requests, or questions:
-[Contact information]
+Found a bug or have a feature request?
+
+- 🐛 [Open an issue](https://github.com/Debajyoti0-0/CTProbe/issues)
+- 👤 Author: [Debajyoti0-0](https://github.com/Debajyoti0-0)
+- 📦 Repository: [github.com/Debajyoti0-0/CTProbe](https://github.com/Debajyoti0-0/CTProbe)
+
+---
+
+<div align="center">
+
+Made with ⚡ by [Debajyoti0-0](https://github.com/Debajyoti0-0)
+
+</div>
