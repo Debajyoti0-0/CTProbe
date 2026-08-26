@@ -1,0 +1,7 @@
+ctprobe (1.0.0-1) unstable; urgency=medium
+
+  * Initial release. (Closes: #000000)
+  * Certificate Transparency subdomain enumeration and HTTP/S reconnaissance
+    tool for authorized security assessments.
+
+ -- Debajyoti0-0 <Debajyoti0-0@users.noreply.github.com>  Wed, 26 Aug 2026 00:00:00 +0000

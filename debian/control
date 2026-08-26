@@ -1,0 +1,54 @@
+Source: ctprobe
+Section: net
+Priority: optional
+Maintainer: Debajyoti0-0 <Debajyoti0-0@users.noreply.github.com>
+Rules-Requires-Root: no
+Build-Depends:
+ debhelper-compat (= 13),
+ dh-python,
+ pybuild-plugin-pyproject,
+ python3-all,
+ python3-setuptools,
+ python3-pytest <!nocheck>,
+ python3-pytest-mock <!nocheck>,
+ python3-requests <!nocheck>,
+ python3-aiohttp <!nocheck>,
+ python3-tldextract <!nocheck>,
+ python3-urllib3 <!nocheck>,
+Standards-Version: 4.6.2
+Homepage: https://github.com/Debajyoti0-0/ctprobe
+X-Python3-Version: >= 3.9
+
+Package: ctprobe
+Architecture: all
+Depends:
+ ${python3:Depends},
+ ${misc:Depends},
+ python3-requests,
+ python3-socks,
+ python3-urllib3,
+ python3-tldextract,
+ python3-aiohttp,
+# Recommends: optional features that most users will want but that the tool
+# degrades gracefully without (verified at runtime via importlib.find_spec).
+Recommends:
+ curl,
+ python3-rich,
+ python3-openpyxl,
+# Suggests: routed-scan and HTTP/2 capabilities that are entirely opt-in.
+Suggests:
+ tor,
+ python3-httpx,
+ python3-h2,
+Description: Certificate Transparency subdomain enumeration and HTTP/S reconnaissance
+ ctprobe enumerates certificate-derived subdomains of an apex target from
+ Certificate Transparency logs, then probes and classifies their HTTP/S
+ reachability. It is intended for authorized security assessments and OSINT
+ reconnaissance.
+ .
+ Features include public-suffix-aware target normalization, a bounded-
+ concurrency asynchronous testing engine (aiohttp), fail-closed proxy and Tor
+ routing, HTTP status match/filter policies, and txt/json/xlsx output.
+ .
+ This tool is not an anonymity or evasion tool; --stealth only lowers request
+ rate and concurrency. Use it only against systems you are authorized to test.

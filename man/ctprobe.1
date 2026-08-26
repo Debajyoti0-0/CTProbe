@@ -1,0 +1,160 @@
+.TH CTPROBE 1 "2026-08-26" "ctprobe 1.0.0" "User Commands"
+.SH NAME
+ctprobe \- Certificate Transparency subdomain enumeration and HTTP/S reconnaissance
+.SH SYNOPSIS
+.B ctprobe
+.RI [ OPTIONS ]
+.I domain
+.SH DESCRIPTION
+.B ctprobe
+queries Certificate Transparency logs for an apex domain, enumerates the unique
+certificate-derived subdomains, and optionally probes and classifies their
+HTTP/S reachability. It is intended for authorized security assessments and
+OSINT reconnaissance.
+.PP
+The discovery target is normalized using a public-suffix-aware apex derivation,
+so inputs such as a full URL or a deep subdomain are reduced to the correct
+registrable domain before querying.
+.PP
+.B ctprobe
+is not an anonymity or evasion tool. The
+.B \-\-stealth
+option only lowers request rate and concurrency; it does not make traffic
+anonymous or undetectable. Use this tool only against systems you are
+authorized to test.
+.SH OPTIONS
+.SS Target
+.TP
+.I domain
+Target domain, e.g.\& \fBexample.com\fR. A full URL is accepted and normalized.
+.SS Live testing
+.TP
+.B \-\-live
+Perform HTTP live testing on discovered subdomains.
+.TP
+.B \-\-no\-live
+Skip live testing. Conflicts with \fB\-\-match\-code\fR/\fB\-\-filter\-code\fR.
+.TP
+.BR \-mc ", " \-\-match\-code " " \fISTATUS\fR
+Match HTTP status codes, or \fBall\fR. Accepts codes, comma lists, and ranges
+(e.g.\& \fB200,301,500\-599\fR). Supplying this option enables live testing.
+.TP
+.BR \-fc ", " \-\-filter\-code " " \fISTATUS\fR
+Exclude status codes from matching responses. Filter takes precedence over
+match. Supplying this option enables live testing.
+.SS HTTP
+.TP
+.B \-\-http\-version \fR{auto,1.1,2,3}
+Protocol selection. \fBauto\fR tries HTTP/3, HTTP/2, then HTTP/1.1 among the
+protocols actually available in the runtime. Default: \fBauto\fR.
+.TP
+.B \-\-force
+Do not fall back to another HTTP version. Requires an explicit
+\fB\-\-http\-version\fR. A silently downgraded protocol is rejected.
+.TP
+.B \-\-bypass\-ssl\fR, \fB\-\-bypass\-tls
+Disable TLS certificate verification for the scanner transport only. Insecure;
+authorized testing only.
+.TP
+.B \-\-header \fINAME:VALUE\fR
+Add a custom header (repeatable). Control characters are rejected. An explicit
+\fBUser-Agent\fR header takes precedence over \fB\-\-user\-agent\fR.
+.TP
+.B \-\-user\-agent \fISTRING\fR
+User-Agent value (default: \fBMozilla/5.0\fR).
+.TP
+.B \-\-timeout \fISECONDS\fR
+Per-request timeout (default: 10.0).
+.SS Proxy and Tor
+.TP
+.B \-\-proxy \fIURL\fR
+Route through an HTTP/HTTPS or SOCKS4/4a/5/5h proxy. SOCKS requires PySocks
+(python3-socks). Routing is fail-closed: if the proxy cannot be used, the scan
+does not run directly.
+.TP
+.B \-\-tor \fR[\fIURL\fR]
+Route through Tor (default endpoint \fBsocks5h://127.0.0.1:9050\fR). Tor is only
+reported when confirmed (IsTor=true); a non-Tor SOCKS proxy is rejected. Cannot
+be combined with \fB\-\-proxy\fR.
+.SS Concurrency and stealth
+.TP
+.B \-\-workers \fIN\fR
+Effective concurrency (default: 30).
+.TP
+.B \-\-stealth
+Conservative low-rate mode: reduced concurrency and randomized delays. Not an
+anonymity feature.
+.TP
+.B \-\-stealth\-min\-delay \fISECONDS\fR, \fB\-\-stealth\-max\-delay \fISECONDS\fR
+Randomized delay bounds for stealth mode (defaults: 1.0 and 3.0).
+.SS Analysis and output
+.TP
+.B \-\-threat
+Run heuristic threat indicators (TLD, keywords, structure). Heuristic only, not
+a maliciousness verdict.
+.TP
+.B \-\-output \fR{txt,json,xls,xlsx}
+Output format (default: txt). Terminal colors never enter output files.
+.TP
+.BR \-f ", " \-\-filename " " \fINAME\fR
+Custom output base name.
+.TP
+.B \-\-output\-dir \fIDIR\fR
+Output directory (default: Outputs).
+.SS Logging
+.TP
+.BR \-\-verbose ", " \-\-debug ", " \-\-quiet
+Verbosity controls.
+.TP
+.B \-\-no\-color
+Disable colored output. Also honored via the \fBNO_COLOR\fR environment
+variable.
+.SH OUTPUT
+Without live testing, one file \fINAME\fR.output.\fIext\fR is written. With live
+testing, \fINAME\fR.ALL-output.\fIext\fR (every discovered subdomain) and
+\fINAME\fR.LIVE-output.\fIext\fR (matched subdomains only) are written; LIVE is
+always a subset of ALL.
+.SH EXIT STATUS
+.TP
+.B 0
+Successful execution.
+.TP
+.B 1
+General runtime or discovery failure.
+.TP
+.B 2
+Invalid configuration, or proxy/Tor/forced-protocol verification failure.
+.TP
+.B 130
+Interrupted (SIGINT / Ctrl+C).
+.PP
+Note: finer-grained per-subsystem exit codes are not currently distinguished.
+.SH ENVIRONMENT
+.TP
+.B NO_COLOR
+When set to a non-empty value, disables colored output.
+.TP
+.B FORCE_COLOR
+When set to \fB1\fR, forces colored output.
+.SH EXAMPLES
+.TP
+Enumerate subdomains and prompt for live testing:
+.B ctprobe example.com
+.TP
+Enumerate subdomains and match only HTTP 200 (auto-enables live testing):
+.B ctprobe example.com \-mc 200
+.TP
+Match all responses except 404, JSON output:
+.B ctprobe example.com \-mc all \-fc 404 \-\-output json
+.TP
+Route through Tor with conservative rate:
+.B ctprobe example.com \-\-tor \-\-stealth
+.SH LIMITATIONS
+HTTP/2 requires python3-httpx with the h2 backend; HTTP/3 requires a curl binary
+built with HTTP/3 support. SOCKS/Tor routing requires python3-socks. Missing
+optional dependencies disable only their specific feature.
+.SH AUTHOR
+Debajyoti0-0.
+.SH COPYRIGHT
+GNU General Public License version 3 or later (GPL-3+); see
+/usr/share/doc/ctprobe/copyright for details.
