@@ -1,0 +1,30 @@
+# Core dependencies
+# requests[socks] pulls in PySocks so SOCKS4/4a/5/5h and Tor routing are real,
+# not faked. Required for --tor / socks proxies to function (fail-closed).
+requests[socks]>=2.28.0
+urllib3>=1.26.0
+tldextract>=5.1.0
+
+# aiohttp powers the asynchronous live-testing engine (bounded-concurrency,
+# pooled ClientSession) for the auto/HTTP-1.1 path over direct or HTTP/HTTPS
+# proxies. SOCKS/Tor routes and explicit HTTP/2 (httpx) / HTTP/3 (curl) fall
+# back to the threaded engine. If aiohttp is absent at runtime, the scanner
+# degrades to the threaded engine rather than failing.
+aiohttp>=3.8,<4
+
+# Optional: Rich for beautiful output
+# Uncomment to enable Rich: pip install rich
+# rich>=13.0.0
+
+# Optional: HTTP/2 support
+# Uncomment to enable HTTP/2: pip install 'httpx[http2]'
+# httpx[http2]>=0.24.0
+
+# Optional: Excel output support
+# Uncomment to enable XLSX: pip install openpyxl
+# openpyxl>=3.10.0
+
+# Development and testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
