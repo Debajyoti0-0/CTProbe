@@ -17,7 +17,7 @@ HTTP/S reachability — fast, fail-closed, and protocol-aware.*
 </div>
 
 <p align="center">
-<img src="https://github.com/Debajyoti0-0/CTProbe/blob/main/Image.png" alt="CTProbe Logo">
+<img src="https://github.com/Debajyoti0-0/CTProbe/blob/main/Image.jpeg" alt="CTProbe Logo">
 </p>
 
 > ⚠️ **Authorized use only.** CTProbe is intended for **authorized** security
