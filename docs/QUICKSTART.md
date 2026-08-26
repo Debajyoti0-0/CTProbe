@@ -56,8 +56,14 @@ pip install -e '.[http2,xlsx,rich]'
 HTTP/3 uses a `curl` subprocess and requires a curl built with HTTP/3 support:
 
 ```bash
-# macOS with Homebrew
+# macOS (Homebrew)
 brew install --HEAD curl
+
+# Linux (Debian/Ubuntu)
+sudo apt install curl   # check support: curl --version | grep http3
+
+# Windows
+winget install cURL.cURL
 ```
 
 ---
@@ -241,7 +247,16 @@ python3 -m ctprobe example.com --live --stealth --stealth-min-delay 5
 
 **Tor connection failed** — ensure Tor is running on `127.0.0.1:9050`:
 ```bash
+# macOS (Homebrew)
 brew install tor && brew services start tor
+
+# Linux (Debian/Ubuntu)
+sudo apt install tor && sudo systemctl start tor
+
+# Windows
+winget install TorProject.TorBrowser   # run Tor Browser's bundled daemon
+
+# Verify
 curl --socks5 127.0.0.1:9050 https://check.torproject.org
 ```
 
